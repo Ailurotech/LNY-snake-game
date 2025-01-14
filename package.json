@@ -1,0 +1,17 @@
+{
+  "name": "multiplayer-snake",
+  "version": "1.0.0",
+  "description": "A multiplayer snake game similar to slither.io",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "dependencies": {
+    "express": "^4.17.1",
+    "socket.io": "^4.5.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+} 
