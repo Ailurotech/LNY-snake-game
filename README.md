@@ -18,7 +18,7 @@ A multiplayer snake game similar to slither.io, built with p5.js, Node.js, and S
 2. Clone this repository
 3. Install dependencies:
 ```bash
-npm install
+yarn install
 ```
 
 ## Running the Game
