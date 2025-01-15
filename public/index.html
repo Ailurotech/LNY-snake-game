@@ -190,6 +190,25 @@
             }
         }
 
+        #volumeControl {
+            position: fixed;
+            top: 60px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 101;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+        }
+        
+        #volumeSlider {
+            width: 80px;
+        }
+
         #waitingRoom {
             position: fixed;
             top: 50%;
@@ -271,6 +290,10 @@
 </head>
 <body>
     <button id="fullscreenButton">⛶ Fullscreen</button>
+    <div id="volumeControl">
+        <label for="volumeSlider">Volume:</label>
+        <input type="range" id="volumeSlider" min="0" max="1" step="0.1" value="0.5">
+    </div>
     
     <div id="nameModal">
         <h2>Enter Your Name</h2>
