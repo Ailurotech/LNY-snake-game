@@ -1046,9 +1046,8 @@ socket.on('gameEnd', (data) => {
         ">
             <div style="color: #FFD700; margin-bottom: 10px;">Final Scores</div>
             ${Object.values(otherPlayers)
-                .concat([{name: playerName, score: snake.length - 50}])
                 .sort((a, b) => b.score - a.score)
-                .slice(1, 5)
+                .slice(0, 5)
                 .map((player, index) => `
                     <div style="
                         display: flex;
