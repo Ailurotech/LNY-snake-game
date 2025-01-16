@@ -12,6 +12,7 @@ const countdownDisplay = document.getElementById('countdown');
 const readyButton = document.getElementById('readyButton');
 const startGameButton = document.getElementById('startGameButton');
 const waitingMessage = document.getElementById('waitingMessage');
+const volumeSlider = document.getElementById('volumeSlider');
 
 // Set canvas size
 canvas.width = window.innerWidth - 50;
@@ -28,6 +29,13 @@ let gameOver = false;
 let playerName = '';
 let gameTimer = 20; // Match server's GAME_DURATION
 let gameTimerInterval = null;
+let animationId = null; // Animation frame ID
+
+// music
+const lobbyMusic = new Audio('music/lobby.mp3');
+const loseMusic = new Audio('music/lose.mp3');
+const winMusic = new Audio('music/win.mp3');
+const bgm = new Audio('music/Normal.mp3');
 
 // Hide UI elements initially
 canvas.style.display = 'none';
@@ -53,6 +61,32 @@ timerDiv.style.fontSize = '20px';
 timerDiv.style.fontWeight = 'bold';
 timerDiv.style.zIndex = '100';
 document.body.appendChild(timerDiv);
+
+// Stop all music
+function stopAllMusic() {
+    loseMusic.pause();
+    loseMusic.currentTime = 0;
+    winMusic.pause();
+    winMusic.currentTime = 0;
+    bgm.pause();
+    bgm.currentTime = 0;
+    lobbyMusic.pause();
+    lobbyMusic.currentTime = 0;
+}
+
+// Play a specific music
+function playMusic(music, loop=true) {
+    stopAllMusic();
+    music.loop = loop;
+    music.play().catch(error => console.error('Error playing music:', error));
+}
+
+volumeSlider.addEventListener('input', () => {
+    loseMusic.volume = volumeSlider.value;
+    winMusic.volume = volumeSlider.value;
+    lobbyMusic.volume = volumeSlider.value;
+    bgm.volume = volumeSlider.value;
+});
 
 function formatTime(seconds) {
     const minutes = Math.floor(seconds / 60);
@@ -97,6 +131,9 @@ enterGameButton.addEventListener('click', () => {
             readyButton.textContent = 'Join Game';
             readyButton.style.background = '#4CAF50';
         }
+
+        // Play lobby music
+        playMusic(lobbyMusic);
     }
 });
 
@@ -199,6 +236,9 @@ socket.on('gameState', (data) => {
         if (gameTimerInterval) {
             clearInterval(gameTimerInterval);
         }
+
+        // Switch back to lobby music when waiting
+        playMusic(lobbyMusic);
     }
     
     // Update room master status
@@ -228,6 +268,8 @@ socket.on('gameStart', () => {
     waitingRoom.style.display = 'none';
     canvas.style.display = 'block';
     document.getElementById('leaderboard').style.display = 'block';
+    // Play bgm
+    playMusic(bgm);    
     init();
 });
 
@@ -378,6 +420,9 @@ class Snake {
         this.isDead = true;
         gameOver = true;
         gameOverDiv.style.display = 'block';
+
+        // Play lose music
+        playMusic(loseMusic, false);
         
         // Clear game timer
         if (gameTimerInterval) {
@@ -690,7 +735,7 @@ function gameLoop() {
         });
     }
     
-    requestAnimationFrame(gameLoop);
+    animationId = requestAnimationFrame(gameLoop);
 }
 
 // Handle window resize
@@ -701,6 +746,12 @@ window.addEventListener('resize', () => {
 
 // Add restart function
 function restartGame() {
+    // Cancel previous game loop
+    if (animationId !== null) {
+        cancelAnimationFrame(animationId);
+        animationId = null;
+    }
+
     gameOver = false;
     gameOverDiv.style.display = 'none';
     canvas.style.display = 'block';
@@ -716,6 +767,9 @@ function restartGame() {
     
     // Start game timer
     startGameTimer();
+
+    // Play bgm
+    playMusic(bgm);
     
     // Start game loop
     gameLoop();
@@ -969,6 +1023,13 @@ socket.on('gameEnd', (data) => {
     // Show winner announcement with final leaderboard
     winnerDiv.style.display = 'block';
     const isWinner = data.winner.id === socket.id;
+
+    if (isWinner) {
+        playMusic(winMusic, false);
+    } else {
+        stopAllMusic();
+    }
+
     winnerDiv.innerHTML = `
         <div style="margin-bottom: 20px">
             ${isWinner ? 
