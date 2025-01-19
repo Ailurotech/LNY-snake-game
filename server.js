@@ -6,6 +6,7 @@ const io = require('socket.io')(server);
 app.use(express.static('public'));
 
 const players = {};
+const inspectors = {};
 const foods = [];
 const FOOD_COUNT = 200;
 const COUNTDOWN_TIME = 3; 
@@ -162,42 +163,45 @@ function generateFood() {
 }
 
 io.on('connection', (socket) => {
-    console.log('A user connected:', socket.id);
-    players[socket.id] = {
-        x: 0,
-        y: 0,
-        segments: [],
-        color: `hsl(${Math.random() * 360}, 50%, 50%)`,
-        radius: 10,
-        score: 0,
-        name: 'Anonymous',
-        ready: false
-    };
-
-    // Set room master if none exists
-    if (!roomMaster) {
-        setNewRoomMaster();
-    }
-
-    // Send current game state to new player
-    socket.emit('gameState', {
-        state: gameState,
-        countdown: countdownTime,
-        roomMaster: roomMaster,
-        gameTimeRemaining: gameTimeRemaining
+    socket.on('joinAsPlayer', (name) => {
+        players[socket.id] = {
+            x: 0,
+            y: 0,
+            segments: [],
+            color: `hsl(${Math.random() * 360}, 50%, 50%)`,
+            radius: 10,
+            score: 0,
+            name: 'Anonymous',
+            ready: false
+        };
+        console.log(`Player joined: ${socket.id}`);
+        // Set room master if none exists
+        if (!roomMaster) {
+            setNewRoomMaster();
+        }
+        // Send current game state to new player
+        socket.emit('gameState', {
+            state: gameState,
+            countdown: countdownTime,
+            roomMaster: roomMaster,
+            gameTimeRemaining: gameTimeRemaining
+        });
+        players[socket.id].name = name;
+        io.emit('playerList', Object.values(players).map(player => ({
+            ...player,
+            isRoomMaster: socket.id === roomMaster
+        })));
+        
+        // Start auto-ready timer for the player
+        startAutoReadyTimer(socket.id);  
     });
 
-    socket.on('setName', (name) => {
-        if (players[socket.id]) {
-            players[socket.id].name = name;
-            io.emit('playerList', Object.values(players).map(player => ({
-                ...player,
-                isRoomMaster: socket.id === roomMaster
-            })));
-            
-            // Start auto-ready timer for the player
-            startAutoReadyTimer(socket.id);
-        }
+    // watch as an inspector
+    socket.on('joinAsInspector', () => {
+        inspectors[socket.id] = {
+            id: socket.id,
+        };
+        console.log(`Inspector joined: ${socket.id}`);
     });
 
     socket.on('playerReady', () => {
@@ -232,7 +236,14 @@ io.on('connection', (socket) => {
 
     socket.on('disconnect', () => {
         console.log('User disconnected:', socket.id);
-        delete players[socket.id];
+
+        if (players[socket.id]) {
+            delete players[socket.id];
+        }
+        
+        if (inspectors[socket.id]) {
+            delete inspectors[socket.id];
+        }
         
         // If room master disconnected, assign new room master
         if (socket.id === roomMaster) {
