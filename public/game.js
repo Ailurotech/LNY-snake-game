@@ -13,6 +13,10 @@ const readyButton = document.getElementById('readyButton');
 const startGameButton = document.getElementById('startGameButton');
 const waitingMessage = document.getElementById('waitingMessage');
 const volumeSlider = document.getElementById('volumeSlider');
+const watchGameButton = document.getElementById('watchGameButton');
+const zoomControls = document.getElementById('zoomControls');
+const zoomInButton = document.getElementById('zoomInButton');
+const zoomOutButton = document.getElementById('zoomOutButton');
 
 // Set canvas size
 canvas.width = window.innerWidth - 50;
@@ -30,6 +34,15 @@ let playerName = '';
 let gameTimer = 20; // Match server's GAME_DURATION
 let gameTimerInterval = null;
 let animationId = null; // Animation frame ID
+let isDragging = false; // Track mouse dragging
+let dragStartX = 0;
+let dragStartY = 0;
+let isTouchDragging = false; // Track touch dragging
+let touchStartX = 0;
+let touchStartY = 0;
+let isPinching = false; // Track pinch gesture for zooming
+let initialPinchDistance = 0;
+let initialZoomLevel = 1.0;
 
 // music
 const lobbyMusic = new Audio('music/lobby.mp3');
@@ -48,6 +61,12 @@ let gameStarted = false;
 let isRoomMaster = false;
 let gameState = 'waiting';
 
+// Inspector mode variables
+let inspectorMode = false;
+let cameraX = 0;
+let cameraY = 0;
+let zoomLevel = 1.0;
+
 // Add timer display div
 const timerDiv = document.createElement('div');
 timerDiv.style.position = 'fixed';
@@ -61,6 +80,123 @@ timerDiv.style.fontSize = '20px';
 timerDiv.style.fontWeight = 'bold';
 timerDiv.style.zIndex = '100';
 document.body.appendChild(timerDiv);
+
+// Zoom functions
+// PC
+zoomInButton.addEventListener('click', () => {
+    if (inspectorMode) {
+        zoomLevel = Math.min(zoomLevel + 0.1, 3.0);
+    }
+});
+
+zoomOutButton.addEventListener('click', () => {
+    if (inspectorMode) {
+        zoomLevel = Math.max(zoomLevel - 0.1, 0.1);
+    }
+});
+
+// Mobile device
+// Calculate distance between two touch points
+function calDistance(touch1, touch2) {
+    const dx = touch2.clientX - touch1.clientX;
+    const dy = touch2.clientY - touch1.clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+}
+
+canvas.addEventListener('touchstart', (e) => {
+    if (inspectorMode) {
+        isPinching = true;
+        initialPinchDistance = calDistance(e.touches[0], e.touches[1]);
+        initialZoomLevel = zoomLevel;
+    }
+});
+
+canvas.addEventListener('touchmove', (e) => {
+    if (isPinching && inspectorMode) {
+        const currentPinchDistance = calDistance(e.touches[0], e.touches[1]);
+        const pinchRatio = currentPinchDistance / initialPinchDistance;
+        zoomLevel = Math.min(Math.max(initialZoomLevel * pinchRatio, 0.1), 3.0);
+    }
+});
+
+canvas.addEventListener('touchend', () => {
+    if (isPinching && inspectorMode) {
+        isPinching = false;
+    }
+});
+
+canvas.addEventListener('touchcancel', () => {
+    if (isPinching && inspectorMode) {
+        isPinching = false;
+    }
+});
+
+// mouse drag
+canvas.addEventListener('mousedown', (e) => {
+    if (inspectorMode) {
+        isDragging = true;
+        dragStartX = e.clientX;
+        dragStartY = e.clientY;
+        canvas.style.cursor = 'grabbing';
+    }
+});
+
+canvas.addEventListener('mousemove', (e) => {
+    if (isDragging && inspectorMode) {
+        cameraX -= (e.clientX - dragStartX) / zoomLevel;
+        cameraY -= (e.clientY - dragStartY) / zoomLevel;
+        dragStartX = e.clientX;
+        dragStartY = e.clientY;
+    }
+});
+
+canvas.addEventListener('mouseup', () => {
+    if (isDragging && inspectorMode) {
+        isDragging = false;
+        canvas.style.cursor = 'default';
+    }
+});
+
+canvas.addEventListener('mouseleave', () => {
+    if (isDragging && inspectorMode) {
+        isDragging = false;
+        canvas.style.cursor = 'default';
+    }
+});
+
+// touch drag
+canvas.addEventListener('touchstart', (e) => {
+    if (inspectorMode) {
+        isTouchDragging = true;
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+        canvas.style.cursor = 'grabbing';
+    }
+});
+
+canvas.addEventListener('touchmove', (e) => {
+    if (isTouchDragging && inspectorMode) {
+        e.preventDefault();
+        cameraX -= (e.touches[0].clientX - touchStartX) / zoomLevel;
+        cameraY -= (e.touches[0].clientY - touchStartY) / zoomLevel;
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+    }
+}, { passive: false });
+
+canvas.addEventListener('touchend', () => {
+    if (isTouchDragging && inspectorMode) {
+        isTouchDragging = false;
+        canvas.style.cursor = 'default';
+    }
+});
+
+canvas.addEventListener('touchcancel', () => {
+    if (isTouchDragging && inspectorMode) {
+        isTouchDragging = false;
+        canvas.style.cursor = 'default';
+    }
+});
 
 // Stop all music
 function stopAllMusic() {
@@ -122,7 +258,8 @@ enterGameButton.addEventListener('click', () => {
     if (playerName) {
         nameModal.style.display = 'none';
         waitingRoom.style.display = 'block';
-        socket.emit('setName', playerName);
+        // socket.emit('setName', playerName);
+        socket.emit('joinAsPlayer', playerName);
         
         // If game is in progress, show appropriate message
         if (gameState === 'playing') {
@@ -135,6 +272,35 @@ enterGameButton.addEventListener('click', () => {
         // Play lobby music
         playMusic(lobbyMusic);
     }
+});
+
+// Handle watch game button click
+watchGameButton.addEventListener('click', () => {
+    // Hide nameModal if it's open
+    nameModal.style.display = 'none';
+    inspectorMode = true;
+
+    // Hide the waiting room (not needed for watchers)
+    waitingRoom.style.display = 'none';
+
+    // Join as a inspector on the server
+    socket.emit('joinAsInspector');
+
+    // Show canvas and leaderboard
+    canvas.style.display = 'block';
+    zoomControls.style.display = 'flex';
+    document.getElementById('leaderboard').style.display = 'block';
+
+    // Set up camera position and zoom level
+    cameraX = 0;
+    cameraY = 0;
+    zoomLevel = 1.0;
+
+    // Start game loop
+    init();
+
+    // Play bgm
+    playMusic(bgm);
 });
 
 // Handle ready button click (for all players including master)
@@ -224,7 +390,7 @@ socket.on('gameState', (data) => {
         // Reset UI for waiting state
         gameStarted = false;
         // Only show waiting room if player has entered name
-        if (playerName) {
+        if (!inspectorMode && playerName) {
             waitingRoom.style.display = 'block';
         }
         canvas.style.display = 'none';
@@ -571,9 +737,12 @@ function getRandomPosition() {
 
 // Initialize game
 function init() {
-    const startPos = getRandomPosition();
-    snake = new Snake(startPos.x, startPos.y);
-    gameOver = false;
+    if (!inspectorMode) {
+        const startPos = getRandomPosition();
+        snake = new Snake(startPos.x, startPos.y);
+        gameOver = false;
+    }
+    
     
     // Remove any existing socket listeners to prevent duplicates
     socket.off('heartbeat');
@@ -631,108 +800,155 @@ function gameLoop() {
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
         // Calculate camera offset
-        const offsetX = canvas.width/2 - snake.pos.x;
-        const offsetY = canvas.height/2 - snake.pos.y;
-        
-        // Draw grid
-        drawGrid(ctx, offsetX, offsetY);
-        
-        // Draw food
-        for (const food of foods) {
-            ctx.fillStyle = food.color || '#ff0000';
-            ctx.beginPath();
-            ctx.arc(food.x + offsetX, food.y + offsetY, food.r, 0, Math.PI * 2);
-            ctx.fill();
-        }
-        
-        // Draw other players
-        for (const id in otherPlayers) {
-            if (id !== socket.id) {
+        if (!inspectorMode) {
+            const offsetX = canvas.width/2 - snake.pos.x;
+            const offsetY = canvas.height/2 - snake.pos.y;
+
+            // Draw grid
+            drawGrid(ctx, offsetX, offsetY);
+
+                // Draw food
+            for (const food of foods) {
+                ctx.fillStyle = food.color || '#ff0000';
+                ctx.beginPath();
+                ctx.arc(food.x + offsetX, food.y + offsetY, food.r, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            // Draw other players
+            for (const id in otherPlayers) {
+                if (id !== socket.id) {
+                    const player = otherPlayers[id];
+                    ctx.fillStyle = player.color;
+
+                    // Draw segments
+                    for (const segment of player.segments) {
+                        ctx.beginPath();
+                        ctx.arc(segment.x + offsetX, segment.y + offsetY, player.radius, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+
+                    // If player has at least one segment (for direction)
+                    if (player.segments.length > 0) {
+                        // Calculate direction
+                        const dx = player.x - player.segments[0].x;
+                        const dy = player.y - player.segments[0].y;
+                        const angle = Math.atan2(dy, dx);
+
+                        // Draw eyes
+                        const eyeDistance = player.radius * 0.5;
+                        const eyeSize = player.radius * 0.3;
+                        const eyeOffset = player.radius * 0.3;
+
+                        // Left eye position
+                        const leftEyeX = player.x + Math.cos(angle - 0.5) * eyeDistance;
+                        const leftEyeY = player.y + Math.sin(angle - 0.5) * eyeDistance;
+                        
+                        // Right eye position
+                        const rightEyeX = player.x + Math.cos(angle + 0.5) * eyeDistance;
+                        const rightEyeY = player.y + Math.sin(angle + 0.5) * eyeDistance;
+
+                        // Draw eye whites
+                        ctx.fillStyle = 'white';
+                        ctx.beginPath();
+                        ctx.arc(leftEyeX + offsetX, leftEyeY + offsetY, eyeSize, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.beginPath();
+                        ctx.arc(rightEyeX + offsetX, rightEyeY + offsetY, eyeSize, 0, Math.PI * 2);
+                        ctx.fill();
+
+                        // Draw pupils
+                        ctx.fillStyle = 'black';
+                        ctx.beginPath();
+                        ctx.arc(leftEyeX + Math.cos(angle) * eyeOffset * 0.3 + offsetX, 
+                                leftEyeY + Math.sin(angle) * eyeOffset * 0.3 + offsetY, 
+                                eyeSize * 0.5, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.beginPath();
+                        ctx.arc(rightEyeX + Math.cos(angle) * eyeOffset * 0.3 + offsetX, 
+                                rightEyeY + Math.sin(angle) * eyeOffset * 0.3 + offsetY, 
+                                eyeSize * 0.5, 0, Math.PI * 2);
+                        ctx.fill();
+
+                        // Draw name
+                        ctx.fillStyle = 'white';
+                        ctx.font = '14px Arial';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'bottom';
+                        ctx.fillText(player.name, player.x + offsetX, player.y + offsetY - player.radius - 5);
+                    }
+                }
+            }
+
+            // Update and draw player snake
+            snake.update();
+            ctx.save();
+            ctx.translate(offsetX, offsetY);
+            snake.draw(ctx);
+            ctx.restore();
+            
+            // Check for food collision
+            for (let i = foods.length - 1; i >= 0; i--) {
+                if (snake.eat(foods[i])) {
+                    socket.emit('foodEaten', i);
+                }
+            }
+            
+            // Send player data to server
+            socket.emit('update', {
+                x: snake.pos.x,
+                y: snake.pos.y,
+                segments: snake.segments.map(s => ({x: s.x, y: s.y})),
+                color: snake.color,
+                radius: snake.radius,
+                name: playerName
+            });
+        } else {
+            // Inspector mode
+            // Allow arrow keys to pan, wheel to zoom
+            ctx.save();
+
+            // Move to center
+            ctx.translate(canvas.width/2, canvas.height/2);
+            // zoom
+            ctx.scale(zoomLevel, zoomLevel);
+            // translate based on cameraX, cameraY
+            ctx.translate(-cameraX, -cameraY);
+
+            // Draw grid
+            drawGrid(ctx, 0, 0);
+
+            // Draw food
+            for (const food of foods) {
+                ctx.fillStyle = food.color || '#ff0000';
+                ctx.beginPath();
+                ctx.arc(food.x, food.y, food.r, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Draw all players
+            for (const id in otherPlayers) {
                 const player = otherPlayers[id];
                 ctx.fillStyle = player.color;
-
-                // Draw segments
                 for (const segment of player.segments) {
                     ctx.beginPath();
-                    ctx.arc(segment.x + offsetX, segment.y + offsetY, player.radius, 0, Math.PI * 2);
+                    ctx.arc(segment.x, segment.y, player.radius, 0, Math.PI * 2);
                     ctx.fill();
                 }
 
-                // If player has at least one segment (for direction)
-                if (player.segments.length > 0) {
-                    // Calculate direction
-                    const dx = player.x - player.segments[0].x;
-                    const dy = player.y - player.segments[0].y;
-                    const angle = Math.atan2(dy, dx);
-
-                    // Draw eyes
-                    const eyeDistance = player.radius * 0.5;
-                    const eyeSize = player.radius * 0.3;
-                    const eyeOffset = player.radius * 0.3;
-
-                    // Left eye position
-                    const leftEyeX = player.x + Math.cos(angle - 0.5) * eyeDistance;
-                    const leftEyeY = player.y + Math.sin(angle - 0.5) * eyeDistance;
-                    
-                    // Right eye position
-                    const rightEyeX = player.x + Math.cos(angle + 0.5) * eyeDistance;
-                    const rightEyeY = player.y + Math.sin(angle + 0.5) * eyeDistance;
-
-                    // Draw eye whites
-                    ctx.fillStyle = 'white';
-                    ctx.beginPath();
-                    ctx.arc(leftEyeX + offsetX, leftEyeY + offsetY, eyeSize, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.beginPath();
-                    ctx.arc(rightEyeX + offsetX, rightEyeY + offsetY, eyeSize, 0, Math.PI * 2);
-                    ctx.fill();
-
-                    // Draw pupils
-                    ctx.fillStyle = 'black';
-                    ctx.beginPath();
-                    ctx.arc(leftEyeX + Math.cos(angle) * eyeOffset * 0.3 + offsetX, 
-                            leftEyeY + Math.sin(angle) * eyeOffset * 0.3 + offsetY, 
-                            eyeSize * 0.5, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.beginPath();
-                    ctx.arc(rightEyeX + Math.cos(angle) * eyeOffset * 0.3 + offsetX, 
-                            rightEyeY + Math.sin(angle) * eyeOffset * 0.3 + offsetY, 
-                            eyeSize * 0.5, 0, Math.PI * 2);
-                    ctx.fill();
-
-                    // Draw name
-                    ctx.fillStyle = 'white';
-                    ctx.font = '14px Arial';
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'bottom';
-                    ctx.fillText(player.name, player.x + offsetX, player.y + offsetY - player.radius - 5);
-                }
+                // Draw name
+                ctx.fillStyle = 'white';
+                ctx.font = '14px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(player.name, player.x, player.y - player.radius + 5);
             }
+
+            ctx.restore();
+
         }
+
+        // ctx.restore();
         
-        // Update and draw player snake
-        snake.update();
-        ctx.save();
-        ctx.translate(offsetX, offsetY);
-        snake.draw(ctx);
-        ctx.restore();
-        
-        // Check for food collision
-        for (let i = foods.length - 1; i >= 0; i--) {
-            if (snake.eat(foods[i])) {
-                socket.emit('foodEaten', i);
-            }
-        }
-        
-        // Send player data to server
-        socket.emit('update', {
-            x: snake.pos.x,
-            y: snake.pos.y,
-            segments: snake.segments.map(s => ({x: s.x, y: s.y})),
-            color: snake.color,
-            radius: snake.radius,
-            name: playerName
-        });
     }
     
     animationId = requestAnimationFrame(gameLoop);
@@ -943,6 +1159,40 @@ document.addEventListener('fullscreenchange', () => {
     updateCanvasSize();
 });
 
+// Handle key events for inspector camera
+document.addEventListener('keydown', (e) => {
+    if (inspectorMode) {
+        const speed = 20;
+        switch (e.key) {
+            case 'ArrowUp':
+                cameraY -= speed;
+                break;
+            case 'ArrowDown':
+                cameraY += speed;
+                break;
+            case 'ArrowLeft':
+                cameraX -= speed;
+                break;
+            case 'ArrowRight':
+                cameraX += speed;
+                break;
+        }
+    }
+});
+
+// Handle wheel events for zooming
+document.addEventListener('wheel', (e) => {
+    if (inspectorMode) {
+        e.preventDefault();
+        const zoomFactor = 0.1;
+        if (e.deltaY < 0) {
+            zoomLevel += zoomFactor; // Zoom in
+        } else {
+            zoomLevel = Math.max(0.1, zoomLevel - zoomFactor); // Zoom out
+        }
+    }
+}, { passive: false });
+
 socket.on('playerList', (players) => {
     const playerListHTML = players.map(player => {
         const statusClass = player.ready ? 'ready' : 'not-ready';
@@ -1046,9 +1296,8 @@ socket.on('gameEnd', (data) => {
         ">
             <div style="color: #FFD700; margin-bottom: 10px;">Final Scores</div>
             ${Object.values(otherPlayers)
-                .concat([{name: playerName, score: snake.length - 50}])
                 .sort((a, b) => b.score - a.score)
-                .slice(1, 5)
+                .slice(0, 5)
                 .map((player, index) => `
                     <div style="
                         display: flex;

@@ -286,6 +286,44 @@
             margin: 15px 0;
             color: #4CAF50;
         }
+
+        #zoomControls {
+            position: fixed;
+            bottom: 80px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            padding: 10px;
+            display: none;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+            z-index: 101;
+        }
+
+        .zoom-button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .zoom-button:hover {
+            background: #45a049;
+        }
+
+        #zoomOutButton {
+            background: #f44336;
+        }
+
+        #zoomOutButton:hover {
+            background: #e53935;
+        }
     </style>
 </head>
 <body>
@@ -294,12 +332,18 @@
         <label for="volumeSlider">Volume:</label>
         <input type="range" id="volumeSlider" min="0" max="1" step="0.1" value="0.5">
     </div>
+
+    <div id="zoomControls">
+        <button id="zoomInButton" class="zoom-button">Zoom In</button>
+        <button id="zoomOutButton" class="zoom-button">Zoom Out</button>
+    </div>
     
     <div id="nameModal">
         <h2>Enter Your Name</h2>
         <input type="text" id="playerName" maxlength="15" placeholder="Your name">
         <br>
         <button id="enterGameButton" class="button" style="background: #4CAF50;">Enter Game</button>
+        <button id="watchGameButton" class="button" style="background: #4CAF50; margin-left: 10px;">Watch Game</button>
     </div>
 
     <div id="waitingRoom" style="display: none;">
