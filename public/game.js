@@ -17,6 +17,7 @@ const watchGameButton = document.getElementById('watchGameButton');
 const zoomControls = document.getElementById('zoomControls');
 const zoomInButton = document.getElementById('zoomInButton');
 const zoomOutButton = document.getElementById('zoomOutButton');
+const ping = document.getElementById('ping');
 
 // Set canvas size
 canvas.width = window.innerWidth - 50;
@@ -43,6 +44,7 @@ let touchStartY = 0;
 let isPinching = false; // Track pinch gesture for zooming
 let initialPinchDistance = 0;
 let initialZoomLevel = 1.0;
+let lastPingTime = Date.now();
 
 // music
 const lobbyMusic = new Audio('music/lobby.mp3');
@@ -80,6 +82,21 @@ timerDiv.style.fontSize = '20px';
 timerDiv.style.fontWeight = 'bold';
 timerDiv.style.zIndex = '100';
 document.body.appendChild(timerDiv);
+
+// Send current ping time to server
+function sendPing() {
+    const currentPingTime = Date.now();
+    socket.emit('sendPing', currentPingTime);
+}
+
+// Receive ping time from server and calculate ping (round-trip time)
+socket.on('receivePing', (sentTime) => {
+    const roundTripTime = Date.now() - sentTime;
+    ping.textContent = `Ping: ${roundTripTime}ms`;
+})
+
+// Calculate ping every second
+setInterval(sendPing, 1000);
 
 // Zoom functions
 // PC

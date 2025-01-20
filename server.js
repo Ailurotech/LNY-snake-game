@@ -163,6 +163,10 @@ function generateFood() {
 }
 
 io.on('connection', (socket) => {
+    socket.on('sendPing', (sentTime) => {
+        socket.emit('receivePing', sentTime);
+    });
+
     socket.on('joinAsPlayer', (name) => {
         players[socket.id] = {
             x: 0,

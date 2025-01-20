@@ -209,6 +209,19 @@
             width: 80px;
         }
 
+        #ping {
+            position: fixed;
+            top: 100px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 14px;
+            font-weight: bold;
+            z-index: 101;
+        }
+
         #waitingRoom {
             position: fixed;
             top: 50%;
@@ -337,6 +350,8 @@
         <button id="zoomInButton" class="zoom-button">Zoom In</button>
         <button id="zoomOutButton" class="zoom-button">Zoom Out</button>
     </div>
+
+    <div id="ping"></div>
     
     <div id="nameModal">
         <h2>Enter Your Name</h2>
